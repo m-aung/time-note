@@ -30,6 +30,9 @@ import Animated, {
 import { CustomRefreshControl } from '../components/AnimatedRefreshControl';
 import { haptics } from '../utils/haptics';
 import { useRouter } from 'expo-router';
+import { useNotification } from '../store/notificationStore';
+import { ErrorView } from '../components/ErrorView';
+
 interface GroupedNotifications {
   title: string;
   data: NotificationHistoryItem[];
@@ -49,6 +52,8 @@ export const NotificationHistoryScreen = () => {
     clearHistory,
     deleteNotification,
   } = useNotificationHistory();
+
+  const { notifications, isLoading: notificationLoading, error: notificationError, fetchNotifications } = useNotification();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -217,6 +222,19 @@ export const NotificationHistoryScreen = () => {
       [0, 1]
     ),
   }));
+
+  if (notificationLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (notificationError) {
+    return (
+      <ErrorView
+        error={notificationError}
+        onRetry={fetchNotifications}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>

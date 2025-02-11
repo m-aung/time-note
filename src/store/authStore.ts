@@ -1,109 +1,63 @@
 import { create } from 'zustand';
-import { AuthState, User } from '../types/auth';
-import { supabase } from '../services/supabase';
-import { handleAuthError } from '../utils/errorHandling';
-import { Session } from '@supabase/supabase-js';
 
-interface AuthStore extends AuthState {
+interface User {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setUser: (user: User | null) => void;
-  initializeAuth: () => Promise<() => void>;
   resetPassword: (email: string) => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  deleteAccount: () => Promise<void>;
+  initializeAuth: () => Promise<void>;
 }
 
-export const useAuth = create<AuthStore>((set, get) => ({
+export const useAuth = create<AuthState>((set) => ({
   user: null,
-  session: null,
-  isLoading: true,
+  isAuthenticated: false,
+  isLoading: false,
   error: null,
-
-  setUser: (user) => set({ user }),
 
   initializeAuth: async () => {
     try {
       set({ isLoading: true, error: null });
-
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-
-      set({ 
-        session,
-        user: session?.user ?? null,
-        isLoading: false 
-      });
-
-      // Store the unsubscribe function but don't return it
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          set({ 
-            session,
-            user: session?.user ?? null,
-          });
-        }
-      );
-
-      // Clean up subscription when component unmounts
-      return () => subscription.unsubscribe();
+      // TODO: Implement actual auth initialization
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      set({ isLoading: false });
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to initialize auth',
         isLoading: false 
       });
-      return () => {};
     }
   },
 
-  signIn: async (email, password) => {
+  signIn: async (email: string, password: string) => {
+    set({ isLoading: true, error: null });
     try {
-      set({ isLoading: true, error: null });
-      
-      console.log('Starting sign in process for:', { email });
-      
-      // Check if session exists
-      const { data: { session: existingSession } } = await supabase.auth.getSession();
-      console.log('Existing session:', existingSession);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // TODO: Implement actual authentication
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const mockUser = {
+        id: '1',
         email,
-        password,
-      });
-
-      if (error) {
-        console.error('Supabase auth error:', {
-          message: error.message,
-          status: error.status,
-          name: error.name
-        });
-        throw error;
-      }
-
-      if (!data?.user) {
-        console.error('No user data returned from sign in');
-        throw new Error('No user data returned');
-      }
-
-      console.log('Sign in successful:', {
-        id: data.user.id,
-        email: data.user.email,
-        created_at: data.user.created_at
-      });
-
+        created_at: new Date().toISOString(),
+      };
       set({ 
-        session: data.session as Session,
-        user: data.user as User,
+        user: mockUser,
+        isAuthenticated: true,
         error: null,
       });
     } catch (error) {
-      console.error('Sign in error:', error);
-      const errorMessage = handleAuthError(error);
       set({ 
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Failed to sign in',
         user: null,
-        session: null,
+        isAuthenticated: false,
       });
       throw error;
     } finally {
@@ -111,47 +65,26 @@ export const useAuth = create<AuthStore>((set, get) => ({
     }
   },
 
-  signUp: async (email, password) => {
+  signUp: async (email: string, password: string) => {
+    set({ isLoading: true, error: null });
     try {
-      set({ isLoading: true, error: null });
-      
-      console.log('Signing up with:', { email });
-
-      const { data, error } = await supabase.auth.signUp({
+      // TODO: Implement actual sign up
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const mockUser = {
+        id: '1',
         email,
-        password,
-        options: {
-          emailRedirectTo: 'yourapp://',
-          data: {
-            email_confirmed_at: new Date().toISOString(), // Auto-confirm for testing
-          }
-        }
-      });
-
-      if (error) {
-        console.error('Signup error:', error);
-        throw error;
-      }
-
-      if (!data?.user) {
-        throw new Error('No user data returned');
-      }
-
-      console.log('Sign up successful:', data.user);
-
-      // For testing, we'll automatically sign in after signup
-      await get().signIn(email, password);
-
+        created_at: new Date().toISOString(),
+      };
       set({ 
-        user: data.user as User,
+        user: mockUser,
+        isAuthenticated: true,
         error: null,
       });
     } catch (error) {
-      console.error('Sign up error:', error);
-      const errorMessage = handleAuthError(error);
       set({ 
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Failed to sign up',
         user: null,
+        isAuthenticated: false,
       });
       throw error;
     } finally {
@@ -160,81 +93,30 @@ export const useAuth = create<AuthStore>((set, get) => ({
   },
 
   signOut: async () => {
+    set({ isLoading: true, error: null });
     try {
-      set({ isLoading: true, error: null });
-      
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      set({ user: null, session: null });
+      // TODO: Implement actual sign out
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      set({ 
+        user: null,
+        isAuthenticated: false,
+        error: null,
+      });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to sign out' });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  resetPassword: async (email) => {
-    try {
-      set({ isLoading: true, error: null });
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'yourapp://reset-password',
-      });
-
-      if (error) throw error;
-    } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'An error occurred',
-      });
       throw error;
     } finally {
       set({ isLoading: false });
     }
   },
 
-  changePassword: async (currentPassword: string, newPassword: string) => {
+  resetPassword: async (email: string) => {
+    set({ isLoading: true, error: null });
     try {
-      set({ isLoading: true, error: null });
-      
-      // First verify the current password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: get().user?.email || '',
-        password: currentPassword,
-      });
-
-      if (signInError) throw new Error('Current password is incorrect');
-
-      // Update to new password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (updateError) throw updateError;
+      // TODO: Implement actual password reset
+      await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to change password',
-      });
-      throw error;
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  deleteAccount: async () => {
-    try {
-      set({ isLoading: true, error: null });
-      const { error } = await supabase.auth.admin.deleteUser(
-        get().user?.id as string
-      );
-
-      if (error) throw error;
-      
-      // Sign out after successful deletion
-      await get().signOut();
-    } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to delete account',
-      });
+      set({ error: error instanceof Error ? error.message : 'Failed to reset password' });
       throw error;
     } finally {
       set({ isLoading: false });

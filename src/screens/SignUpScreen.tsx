@@ -1,41 +1,51 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../store/authStore';
 import { haptics } from '../utils/haptics';
 
-export const ForgotPasswordScreen = () => {
+export const SignUpScreen = () => {
   const router = useRouter();
-  const { resetPassword, isLoading } = useAuth();
+  const { signUp, isLoading } = useAuth();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleSubmit = async () => {
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
+  const handleSignUp = async () => {
+    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
     try {
       await haptics.light();
-      await resetPassword(email);
+      await signUp(email, password);
       await haptics.success();
-      Alert.alert(
-        'Check Your Email',
-        'If an account exists for this email, you will receive password reset instructions.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      router.replace('/(auth)/verify-email');
     } catch (error) {
-      console.error('Reset password error:', error);
+      console.error('Sign up error:', error);
       await haptics.error();
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to send reset email');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to sign up');
     }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Reset Password</Text>
-        <Text style={styles.subtitle}>Enter your email to receive reset instructions</Text>
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Sign up to get started</Text>
       </View>
 
       <View style={styles.form}>
@@ -53,13 +63,37 @@ export const ForgotPasswordScreen = () => {
           />
         </View>
 
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Create a password"
+            secureTextEntry
+            editable={!isLoading}
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Confirm Password</Text>
+          <TextInput
+            style={styles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm your password"
+            secureTextEntry
+            editable={!isLoading}
+          />
+        </View>
+
         <TouchableOpacity
           style={[styles.button, isLoading && styles.buttonDisabled]}
-          onPress={handleSubmit}
+          onPress={handleSignUp}
           disabled={isLoading}
         >
           <Text style={styles.buttonText}>
-            {isLoading ? 'Sending...' : 'Send Reset Link'}
+            {isLoading ? 'Creating Account...' : 'Create Account'}
           </Text>
         </TouchableOpacity>
 
@@ -67,7 +101,9 @@ export const ForgotPasswordScreen = () => {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>Back to Sign In</Text>
+          <Text style={styles.backButtonText}>
+            Already have an account? Sign In
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

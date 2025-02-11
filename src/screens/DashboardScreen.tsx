@@ -46,6 +46,14 @@ export const DashboardScreen = () => {
     setRefreshing(false);
   };
 
+  const handlePersonaPress = (id: string) => {
+    router.push(`/persona/${id}`);
+  };
+
+  const handleAddPersonaPress = () => {
+    router.push('/add-persona');
+  };
+
   // Only show loading on initial load
   if ((personasLoading || passesLoading) && !refreshing && personas.length === 0) {
     return <LoadingSpinner />;
@@ -67,8 +75,8 @@ export const DashboardScreen = () => {
         renderItem={({ item: persona }) => (
           <PersonaList
             personas={[persona]}
-            onPersonaPress={(id) => router.push(`/(app)/persona/${id}`)}
-            onAddPress={() => router.push('/(app)/add-persona')}
+            onPersonaPress={handlePersonaPress}
+            onAddPress={handleAddPersonaPress}
             showAddButton={personas.length === 0}
           />
         )}
@@ -80,7 +88,7 @@ export const DashboardScreen = () => {
           <PersonaList
             personas={[]}
             onPersonaPress={() => {}}
-            onAddPress={() => router.push('/(app)/add-persona')}
+            onAddPress={handleAddPersonaPress}
             showAddButton={true}
           />
         )}

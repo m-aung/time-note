@@ -31,10 +31,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CustomRefreshControl } from '../components/CustomRefreshControl';
 import { StaggeredList } from '../components/StaggeredList';
+import { useRouter } from 'expo-router';
+import { PersonaCard } from '../components/PersonaCard';
+import { AddPersonaButton } from '../components/AddPersonaButton';
+import { ErrorView } from '../components/ErrorView';
 
-export const PersonaListScreen = ({ 
-  navigation 
-}: RootStackScreenProps<'PersonaList'>) => {
+export const PersonaListScreen = () => {
+  const router = useRouter();
   const { personas, isLoading, error, fetchPersonas, deletePersona } = usePersona();
   const [refreshing, setRefreshing] = useState(false);
   const scrollY = useSharedValue(0);
@@ -73,11 +76,11 @@ export const PersonaListScreen = ({
   };
 
   const handleAdd = () => {
-    navigation.navigate('AddPersona');
+    router.push('/add-persona');
   };
 
   const handleEdit = (persona: Persona) => {
-    navigation.navigate('EditPersona', { persona });
+    router.push(`/persona/${persona.id}`);
   };
 
   const handleDelete = async (persona: Persona) => {
@@ -141,14 +144,16 @@ export const PersonaListScreen = ({
     </StaggeredList>
   );
 
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
   if (error) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchPersonas}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <ErrorView
+        error={error}
+        onRetry={fetchPersonas}
+      />
     );
   }
 
@@ -161,60 +166,22 @@ export const PersonaListScreen = ({
         </View>
       </FadeIn>
 
-      {isLoading && !refreshing ? (
-        <View style={styles.centerContainer}>
-          <LoadingSpinner />
-        </View>
-      ) : (
-        <>
-          <Animated.FlatList
-            data={personas}
-            renderItem={renderItem}
-            keyExtractor={item => item.id}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            contentContainerStyle={styles.list}
-            onScroll={scrollHandler}
-            scrollEventThrottle={16}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Ionicons name="people-outline" size={48} color="#666" />
-                <Text style={styles.emptyText}>No personas yet</Text>
-                <Text style={styles.emptySubtext}>
-                  Create a persona to start managing time passes
-                </Text>
-              </View>
-            }
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                progressViewOffset={-20}
-                tintColor="transparent"
-                colors={['transparent']}
-                style={{ backgroundColor: 'transparent' }}
-              />
-            }
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-              { useNativeDriver: true }
-            )}
-            ListHeaderComponent={
-              <CustomRefreshControl
-                refreshing={refreshing}
-                progress={refreshProgress}
-              />
-            }
+      <FlatList
+        data={personas}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <PersonaCard
+            persona={item}
+            onPress={() => router.push(`/persona/${item.id}`)}
           />
-
-          <AnimatedFAB
-            icon="add"
-            label="New Persona"
-            onPress={handleAdd}
-            style={fabStyle}
+        )}
+        contentContainerStyle={styles.list}
+        ListFooterComponent={() => (
+          <AddPersonaButton
+            onPress={() => router.push('/add-persona')}
           />
-        </>
-      )}
+        )}
+      />
     </View>
   );
 };
@@ -239,6 +206,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
+    gap: 12,
   },
   personaItem: {
     flexDirection: 'row',
