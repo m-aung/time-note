@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "scheme": "timenote",
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": ["expo-router"]
+  }
+} 
