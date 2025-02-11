@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Image,
   Alert,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,19 +24,25 @@ import Animated, {
 interface PersonaFormProps {
   onSubmit: (name: string, imageUri?: string) => Promise<void>;
   onCancel: () => void;
-  initialData?: Persona;
+  isLoading: boolean;
+  error: string | null;
+  initialData?: {
+    name: string;
+    image_url?: string;
+  };
   submitLabel?: string;
 }
 
 export const PersonaForm = ({ 
   onSubmit, 
   onCancel, 
+  isLoading, 
+  error,
   initialData,
-  submitLabel = 'Create Persona'
+  submitLabel = 'Create',
 }: PersonaFormProps) => {
-  const [name, setName] = useState(initialData?.name || '');
-  const [image, setImage] = useState<string | null>(initialData?.image_url || null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [name, setName] = useState(initialData?.name ?? '');
+  const [imageUri, setImageUri] = useState<string | undefined>(initialData?.image_url);
 
   // Add scale animation for buttons
   const scale = useSharedValue(1);
@@ -52,24 +59,18 @@ export const PersonaForm = ({
     transform: [{ scale: scale.value }],
   }));
 
-  const requestPermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Sorry, we need camera roll permissions to make this work!',
-        [{ text: 'OK' }]
-      );
-      return false;
-    }
-    return true;
-  };
-
   const handleImagePick = async () => {
     try {
       await haptics.light();
-      const hasPermission = await requestPermission();
-      if (!hasPermission) return;
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant access to your photo library to add an image.'
+        );
+        return;
+      }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -79,102 +80,125 @@ export const PersonaForm = ({
       });
 
       if (!result.canceled) {
-        setImage(result.assets[0].uri);
+        setImageUri(result.assets[0].uri);
         await haptics.success();
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      console.error('Image picker error:', error);
       await haptics.error();
-      Alert.alert('Error', 'Failed to pick image');
     }
   };
 
   const handleSubmit = async () => {
-    try {
-      await haptics.light();
-      
-      const error = validatePersona(name, image || undefined);
-      if (error) {
-        Alert.alert('Validation Error', error);
-        return;
-      }
-
-      setIsLoading(true);
-      await onSubmit(name, image || undefined);
-      await haptics.success();
-    } catch (error) {
-      console.error('Form submit error:', error);
-      await haptics.error();
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to submit form');
-    } finally {
-      setIsLoading(false);
+    const validationError = validatePersona(name, imageUri);
+    if (validationError) {
+      Alert.alert('Error', validationError);
+      return;
     }
+    await onSubmit(name, imageUri);
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.imageButton}
-        onPress={handleImagePick}
-      >
-        {image ? (
-          <Image source={{ uri: image }} style={styles.image} />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Ionicons name="camera" size={32} color="#666" />
-            <Text style={styles.imageText}>Add Photo</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      <Text style={styles.label}>Name</Text>
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="Enter persona name"
-        autoCapitalize="words"
-        maxLength={50}
-      />
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.button, styles.cancelButton]}
-          onPress={onCancel}
-          disabled={isLoading}
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onCancel} style={styles.headerButton}>
+          <Ionicons name="close" size={24} color="#666" />
+        </TouchableOpacity>
+        <Text style={styles.title}>
+          {initialData ? 'Edit Persona' : 'New Persona'}
+        </Text>
+        <TouchableOpacity 
+          onPress={handleSubmit}
+          disabled={isLoading || !name.trim()}
+          style={[
+            styles.headerButton,
+            (!name.trim() || isLoading) && styles.headerButtonDisabled
+          ]}
         >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={[
+            styles.submitText,
+            (!name.trim() || isLoading) && styles.submitTextDisabled
+          ]}>
+            {isLoading ? 'Saving...' : 'Save'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
+
+      <View style={styles.form}>
+        <TouchableOpacity 
+          style={styles.imageContainer}
+          onPress={handleImagePick}
+        >
+          {imageUri ? (
+            <Image 
+              source={{ uri: imageUri }} 
+              style={styles.image}
+            />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="camera" size={32} color="#666" />
+              <Text style={styles.imagePlaceholderText}>
+                Add Photo
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
 
-        <Animated.View style={animatedStyle}>
-          <TouchableOpacity
-            style={[
-              styles.button,
-              styles.submitButton,
-              (!name.trim() || isLoading) && styles.buttonDisabled,
-            ]}
-            onPress={handleSubmit}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-            disabled={!name.trim() || isLoading}
-          >
-            {isLoading ? (
-              <LoadingSpinner color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>{submitLabel}</Text>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Name</Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="Enter persona name"
+            autoCapitalize="words"
+            editable={!isLoading}
+          />
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerButton: {
+    padding: 8,
+  },
+  headerButtonDisabled: {
+    opacity: 0.5,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  submitText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  submitTextDisabled: {
+    color: '#999',
+  },
+  form: {
     padding: 16,
   },
-  imageButton: {
+  imageContainer: {
     alignSelf: 'center',
     marginBottom: 24,
   },
@@ -187,57 +211,34 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#e1e1e1',
+    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imageText: {
+  imagePlaceholderText: {
     color: '#666',
-    marginTop: 8,
     fontSize: 14,
+    marginTop: 8,
+  },
+  inputContainer: {
+    marginBottom: 24,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontSize: 14,
     color: '#666',
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    marginBottom: 24,
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  button: {
-    flex: 1,
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-  },
-  submitButton: {
-    backgroundColor: '#007AFF',
-  },
-  cancelButton: {
-    backgroundColor: '#f8f8f8',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
+  errorText: {
+    color: '#ff4444',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
   },
 }); 

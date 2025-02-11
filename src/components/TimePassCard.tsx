@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { format, isValid } from 'date-fns';
 import { TimePass } from '../types/timePass';
+import { CountdownTimer } from './CountdownTimer';
+import { getCategoryIcon } from '../utils/icons';
 
 interface TimePassCardProps {
   timePass: TimePass;
@@ -10,39 +10,51 @@ interface TimePassCardProps {
 }
 
 export const TimePassCard = ({ timePass, onPress }: TimePassCardProps) => {
-  const expireDate = new Date(timePass.expireAt);
-  const isExpired = isValid(expireDate) && expireDate < new Date();
+  const isActive = timePass.status === 'active';
+  const isExpired = new Date(timePass.expireAt) < new Date();
+  const isCancelled = timePass.status === 'cancelled';
 
-  const formatExpireDate = () => {
-    if (!isValid(expireDate)) {
-      return 'Invalid date';
-    }
-    try {
-      return format(expireDate, 'MMM d, h:mm a');
-    } catch (error) {
-      console.error('Date formatting error:', error);
-      return 'Invalid date';
-    }
+  const getStatusColor = () => {
+    if (isCancelled) return '#ff4444';
+    if (isExpired) return '#666';
+    return '#4CAF50';
+  };
+
+  const getStatusText = () => {
+    if (isCancelled) return 'Cancelled';
+    if (isExpired) return 'Expired';
+    return 'Active';
   };
 
   return (
     <TouchableOpacity 
-      style={[styles.container, isExpired && styles.expired]} 
+      style={[
+        styles.container,
+        !isActive && styles.inactiveContainer
+      ]} 
       onPress={onPress}
     >
       <View style={styles.header}>
-        <Text style={styles.label}>{timePass.label}</Text>
-        <View style={[styles.status, isExpired && styles.expiredStatus]}>
-          <Text style={styles.statusText}>
-            {isExpired ? 'Expired' : 'Active'}
+        <View style={styles.labelContainer}>
+          <Text style={styles.categoryIcon}>
+            {getCategoryIcon(timePass.category)}
           </Text>
+          <Text style={styles.label}>{timePass.label}</Text>
         </View>
+        <Text style={[styles.status, { color: getStatusColor() }]}>
+          {getStatusText()}
+        </Text>
       </View>
 
-      <View style={styles.timeInfo}>
-        <Ionicons name="time-outline" size={16} color="#666" />
-        <Text style={styles.timeText}>
-          Expires {formatExpireDate()}
+      {isActive && (
+        <View style={styles.timerContainer}>
+          <CountdownTimer expireAt={timePass.expireAt} />
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        <Text style={styles.duration}>
+          {timePass.duration} minutes
         </Text>
       </View>
     </TouchableOpacity>
@@ -52,17 +64,16 @@ export const TimePassCard = ({ timePass, onPress }: TimePassCardProps) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 16,
-    marginRight: 12,
-    width: 250,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
-  expired: {
+  inactiveContainer: {
     opacity: 0.7,
   },
   header: {
@@ -71,33 +82,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-  },
-  status: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  expiredStatus: {
-    backgroundColor: '#FF3B30',
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  timeInfo: {
+  labelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  timeText: {
+  categoryIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000',
+    flex: 1,
+  },
+  status: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  timerContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  footer: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  duration: {
     color: '#666',
-    marginLeft: 4,
     fontSize: 14,
   },
 }); 

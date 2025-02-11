@@ -29,42 +29,42 @@ export const validateImage = (uri: string): boolean => {
   return hasValidExtension;
 };
 
-export const validatePersona = (name: string, imageUrl?: string): string | null => {
+export const validatePersona = (name: string, imageUri?: string) => {
   if (!name.trim()) {
     return 'Name is required';
   }
-
+  if (name.length < 2) {
+    return 'Name must be at least 2 characters';
+  }
   if (name.length > 50) {
     return 'Name must be less than 50 characters';
   }
-
-  if (imageUrl && !validateImage(imageUrl)) {
-    return 'Invalid image format';
-  }
-
   return null;
 };
 
-export const validateTimePass = (label: string, expireAt: string): string | null => {
-  if (!label.trim()) {
+export const validateTimePass = (data: {
+  label: string;
+  duration: number;
+  category: string;
+}) => {
+  if (!data.label.trim()) {
     return 'Label is required';
   }
-
-  if (label.length > 100) {
-    return 'Label must be less than 100 characters';
+  if (data.label.length < 2) {
+    return 'Label must be at least 2 characters';
   }
-
-  const expireDate = new Date(expireAt);
-  const now = new Date();
-
-  if (isNaN(expireDate.getTime())) {
-    return 'Invalid expiration date';
+  if (data.label.length > 50) {
+    return 'Label must be less than 50 characters';
   }
-
-  if (expireDate < now) {
-    return 'Expiration date must be in the future';
+  if (!data.duration || data.duration < 1) {
+    return 'Duration must be at least 1 minute';
   }
-
+  if (data.duration > 720) {
+    return 'Duration cannot exceed 12 hours';
+  }
+  if (!['entertainment', 'education', 'exercise', 'other'].includes(data.category)) {
+    return 'Invalid category';
+  }
   return null;
 };
 

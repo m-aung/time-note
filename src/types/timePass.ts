@@ -1,9 +1,12 @@
 export interface TimePass {
   id: string;
   label: string;
-  expireAt: string;
   personaId: string;
-  status: 'active' | 'expired' | 'paused';
+  duration: number;
+  category: 'entertainment' | 'education' | 'exercise' | 'other';
   createdAt: string;
-  updatedAt: string;
-} 
+  expireAt: string;
+  status: 'active' | 'expired' | 'cancelled';
+}
+
+export type TimePassInput = Omit<TimePass, 'id' | 'status' | 'createdAt' | 'expireAt'>; 

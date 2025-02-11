@@ -6,23 +6,26 @@ import { cache } from '../utils/cache';
 import { retry } from '../utils/retry';
 import { queue } from '../utils/queue';
 import { useNetwork } from '../utils/network';
+import { TimePass, TimePassInput } from '../types/timePass';
+import { validateTimePass } from '../utils/validation';
 
 type TimePass = Database['public']['Tables']['time_passes']['Row'];
 type TimePassInsert = Database['public']['Tables']['time_passes']['Insert'];
 type TimePassUpdate = Database['public']['Tables']['time_passes']['Update'];
 
 interface TimePassState {
-  timePasses: TimePass[];
+  passes: TimePass[];
   isLoading: boolean;
   error: string | null;
-  fetchTimePasses: (personaId?: string) => Promise<void>;
-  addTimePass: (data: TimePassInsert) => Promise<TimePass>;
-  updateTimePass: (id: string, data: TimePassUpdate) => Promise<TimePass>;
+  fetchPasses: (personaId: string) => Promise<void>;
+  addTimePass: (data: TimePassInput) => Promise<void>;
+  updateTimePass: (id: string, data: Partial<TimePass>) => Promise<void>;
   deleteTimePass: (id: string) => Promise<void>;
   pauseTimePass: (id: string) => Promise<void>;
   resumeTimePass: (id: string) => Promise<void>;
   subscribeToChanges: (personaId?: string) => () => void;
   unsubscribeFromChanges: () => void;
+  cancelPass: (id: string) => Promise<void>;
 }
 
 const CACHE_KEYS = {
@@ -54,11 +57,11 @@ const QUEUE_OPERATIONS = {
 } as const;
 
 export const useTimePass = create<TimePassState>((set, get) => ({
-  timePasses: [],
+  passes: [],
   isLoading: false,
   error: null,
 
-  fetchTimePasses: async (personaId?: string) => {
+  fetchPasses: async (personaId: string) => {
     try {
       set({ isLoading: true, error: null });
 
@@ -68,25 +71,22 @@ export const useTimePass = create<TimePassState>((set, get) => ({
       
       const cachedData = await cache.get<TimePass[]>(cacheKey);
       if (cachedData) {
-        set({ timePasses: cachedData });
+        set({ passes: cachedData });
       }
 
       const timePasses = await retry(async () => {
         let query = supabase
           .from('time_passes')
           .select('*')
+          .eq('persona_id', personaId)
           .order('created_at', { ascending: false });
-
-        if (personaId) {
-          query = query.eq('persona_id', personaId);
-        }
 
         const { data, error } = await query;
         if (error) throw error;
         return data || [];
       }, retryOptions);
 
-      set({ timePasses });
+      set({ passes: timePasses });
       await cache.set(cacheKey, timePasses, CACHE_EXPIRY);
     } catch (error) {
       console.error('Fetch time passes error:', error);
@@ -96,56 +96,40 @@ export const useTimePass = create<TimePassState>((set, get) => ({
     }
   },
 
-  addTimePass: async (timePassData) => {
-    const { isConnected } = useNetwork.getState();
-    const optimisticId = `temp_${Date.now()}`;
-    const optimisticTimePass = {
-      ...timePassData,
-      id: optimisticId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as TimePass;
-
+  addTimePass: async (data) => {
     try {
-      set({ isLoading: true, error: null });
-      set(state => ({
-        timePasses: [optimisticTimePass, ...state.timePasses]
-      }));
-
-      if (!isConnected) {
-        await queue.add(QUEUE_OPERATIONS.ADD_TIME_PASS, timePassData);
-        return optimisticTimePass;
+      const validationError = validateTimePass(data);
+      if (validationError) {
+        throw new Error(validationError);
       }
 
-      const data = await retry(async () => {
-        const { data, error } = await supabase
-          .from('time_passes')
-          .insert([timePassData])
-          .select()
-          .single();
+      set({ isLoading: true, error: null });
+      
+      const expireAt = new Date(Date.now() + data.duration * 60000).toISOString();
+      
+      const { data: timePass, error } = await supabase
+        .from('time_passes')
+        .insert([{
+          ...data,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          expireAt,
+        }])
+        .select()
+        .single();
 
-        if (error) throw error;
-        if (!data) throw new Error('No data returned from insert');
-        return data;
-      }, retryOptions);
+      if (error) throw error;
 
       set(state => ({
-        timePasses: state.timePasses.map(pass => 
-          pass.id === optimisticId ? data : pass
-        )
+        passes: [...state.passes, timePass],
+        isLoading: false,
       }));
-
-      const cacheKey = CACHE_KEYS.timePass(data.id);
-      await cache.set(cacheKey, data, CACHE_EXPIRY);
-
-      return data;
     } catch (error) {
-      set(state => ({
-        timePasses: state.timePasses.filter(pass => !pass.id.startsWith('temp_'))
-      }));
-      throw error instanceof Error ? error : new Error('Failed to add time pass');
-    } finally {
-      set({ isLoading: false });
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to add time pass',
+        isLoading: false,
+      });
+      throw error;
     }
   },
 
@@ -163,7 +147,7 @@ export const useTimePass = create<TimePassState>((set, get) => ({
       if (!data) throw new Error('No data returned from update');
 
       set(state => ({
-        timePasses: state.timePasses.map(pass => 
+        passes: state.passes.map(pass => 
           pass.id === id ? data : pass
         )
       }));
@@ -188,7 +172,7 @@ export const useTimePass = create<TimePassState>((set, get) => ({
       if (error) throw error;
 
       set(state => ({
-        timePasses: state.timePasses.filter(pass => pass.id !== id)
+        passes: state.passes.filter(pass => pass.id !== id)
       }));
     } catch (error) {
       console.error('Delete time pass error:', error);
@@ -222,13 +206,13 @@ export const useTimePass = create<TimePassState>((set, get) => ({
           switch (eventType) {
             case 'INSERT':
               set(state => ({
-                timePasses: [newRecord, ...state.timePasses]
+                passes: [newRecord, ...state.passes]
               }));
               break;
 
             case 'UPDATE':
               set(state => ({
-                timePasses: state.timePasses.map(pass =>
+                passes: state.passes.map(pass =>
                   pass.id === newRecord.id ? newRecord : pass
                 )
               }));
@@ -236,7 +220,7 @@ export const useTimePass = create<TimePassState>((set, get) => ({
 
             case 'DELETE':
               set(state => ({
-                timePasses: state.timePasses.filter(pass =>
+                passes: state.passes.filter(pass =>
                   pass.id !== oldRecord.id
                 )
               }));
@@ -258,6 +242,10 @@ export const useTimePass = create<TimePassState>((set, get) => ({
         supabase.removeChannel(channel);
       }
     });
+  },
+
+  cancelPass: async (id) => {
+    // Implementation of cancelPass method
   },
 }));
 

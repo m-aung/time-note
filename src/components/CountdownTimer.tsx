@@ -1,22 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Text, StyleSheet, TextStyle } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 
 interface CountdownTimerProps {
   expireAt: string;
-  style?: TextStyle;
 }
 
-export const CountdownTimer: React.FC<CountdownTimerProps> = ({ 
-  expireAt, 
-  style 
-}) => {
+export const CountdownTimer = ({ expireAt }: CountdownTimerProps) => {
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
-      const expiration = new Date(expireAt).getTime();
-      const difference = expiration - now;
+      const expireTime = new Date(expireAt).getTime();
+      const difference = expireTime - now;
 
       if (difference <= 0) {
         setTimeLeft('Expired');
@@ -40,16 +36,14 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
     return () => clearInterval(timer);
   }, [expireAt]);
 
-  return (
-    <Text style={[styles.timer, style]}>
-      {timeLeft}
-    </Text>
-  );
+  return <Text style={styles.timer}>{timeLeft}</Text>;
 };
 
 const styles = StyleSheet.create({
   timer: {
-    fontSize: 16,
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#007AFF',
     fontVariant: ['tabular-nums'],
   },
 }); 
