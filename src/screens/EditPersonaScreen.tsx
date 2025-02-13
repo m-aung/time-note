@@ -23,7 +23,7 @@ export const EditPersonaScreen = () => {
     );
   }
 
-  const handleSubmit = async (name: string, imageUri?: string) => {
+  const handleSubmit = async ({name}:{name: string}, imageUri?: string) => {
     try {
       await haptics.light();
       await updatePersona(id, { 
@@ -50,7 +50,8 @@ export const EditPersonaScreen = () => {
         onCancel={() => router.back()}
         isLoading={isLoading}
         error={error}
-        initialData={persona}
+        initialData={persona.name}
+        submitLabel="Save"
       />
     </View>
   );

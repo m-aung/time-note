@@ -11,22 +11,17 @@ export const validatePassword = (password: string): string | null => {
   return null;
 };
 
-export const validateImage = (uri: string): boolean => {
-  // Check if it's a valid image URL
-  if (!uri) return false;
+export const validateImage = (file: File) => {
+  const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-  // Check file extension
-  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
-  const hasValidExtension = validExtensions.some(ext => 
-    uri.toLowerCase().endsWith(ext)
-  );
-
-  // Check file size (if it's a local file)
-  if (uri.startsWith('file://')) {
-    // Add size check here if needed
+  if (file.size > MAX_SIZE) {
+    throw new Error('Image size must be less than 5MB');
   }
 
-  return hasValidExtension;
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error('Image must be JPEG, PNG or WebP');
+  }
 };
 
 export const validatePersona = (name: string, imageUri?: string) => {
@@ -45,7 +40,7 @@ export const validatePersona = (name: string, imageUri?: string) => {
 export const validateTimePass = (data: {
   label: string;
   duration: number;
-  category: string;
+  type: string;
 }) => {
   if (!data.label.trim()) {
     return 'Label is required';
@@ -62,8 +57,8 @@ export const validateTimePass = (data: {
   if (data.duration > 720) {
     return 'Duration cannot exceed 12 hours';
   }
-  if (!['entertainment', 'education', 'exercise', 'other'].includes(data.category)) {
-    return 'Invalid category';
+  if (!['entertainment', 'education', 'exercise', 'other'].includes(data.type)) {
+    return 'Invalid type';
   }
   return null;
 };

@@ -13,6 +13,9 @@ export interface Persona {
   name: string;
   image_url?: string;
   created_at: string;
+  // TODO: one of these should be removed
+  category: string;
+  type: string;
   activePasses: TimePass[];
   expiredPasses: TimePass[];
 }

@@ -1,21 +1,38 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useAuth } from '../store/authStore';
 import { useNotificationHistory } from '../store/notificationHistoryStore';
 import { NotificationBadge } from '../components/NotificationBadge';
 import { useRouter } from 'expo-router';
+import { haptics } from '../utils/haptics';
 
 export const SettingsScreen = () => {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut, isLoading } = useAuth();
   const { unreadCount } = useNotificationHistory();
 
   const handleSignOut = async () => {
     try {
-      await signOut();
-      router.replace('/(auth)/welcome');
+      await haptics.warning();
+      Alert.alert(
+        'Sign Out',
+        'Are you sure you want to sign out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Sign Out',
+            style: 'destructive',
+            onPress: async () => {
+              await haptics.light();
+              await signOut();
+              router.replace('/(auth)');
+            },
+          },
+        ]
+      );
     } catch (error) {
       console.error('Sign out error:', error);
+      await haptics.error();
     }
   };
 
@@ -99,6 +116,7 @@ export const SettingsScreen = () => {
         <TouchableOpacity 
           style={styles.signOutButton} 
           onPress={handleSignOut}
+          disabled={isLoading}
         >
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>

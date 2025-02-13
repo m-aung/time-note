@@ -16,6 +16,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   initializeAuth: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -122,4 +123,10 @@ export const useAuth = create<AuthState>((set) => ({
       set({ isLoading: false });
     }
   },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    set({ isLoading: true, error: null });
+    // TODO: Implement actual password change
+      console.debug('[authStore] [changePassword] not implemented')
+  }
 })); 

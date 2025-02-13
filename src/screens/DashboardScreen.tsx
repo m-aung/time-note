@@ -1,98 +1,82 @@
-import React, { useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  RefreshControl,
+  ScrollView,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePersona } from '../store/personaStore';
-import { useTimePass } from '../store/timePassStore';
 import { PersonaList } from '../components/PersonaList';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorView } from '../components/ErrorView';
+import { FAB } from '../components/FAB';
+import { haptics } from '../utils/haptics';
 
 export const DashboardScreen = () => {
   const router = useRouter();
-  const { personas, isLoading: personasLoading, error: personasError, fetchPersonas } = usePersona();
-  const { isLoading: passesLoading, error: passesError, fetchPasses } = useTimePass();
-  const [refreshing, setRefreshing] = React.useState(false);
+  const { personas, isLoading, error, fetchPersonas } = usePersona();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async () => {
-    try {
-      await fetchPersonas();
-    } catch (error) {
-      console.error('Dashboard load error:', error);
-    }
-  }, [fetchPersonas]);
-
-  // Initial data load
   useEffect(() => {
-    loadData();
+    fetchPersonas();
   }, []);
-
-  // Load passes after personas are loaded
-  useEffect(() => {
-    const loadPasses = async () => {
-      if (personas.length > 0) {
-        try {
-          await Promise.all(personas.map(persona => fetchPasses(persona.id)));
-        } catch (error) {
-          console.error('Load passes error:', error);
-        }
-      }
-    };
-    loadPasses();
-  }, [personas]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await fetchPersonas();
     setRefreshing(false);
   };
 
-  const handlePersonaPress = (id: string) => {
-    router.push(`/persona/${id}`);
-  };
-
-  const handleAddPersonaPress = () => {
+  const handleAddPersona = async () => {
+    await haptics.light();
     router.push('/add-persona');
   };
 
-  // Only show loading on initial load
-  if ((personasLoading || passesLoading) && !refreshing && personas.length === 0) {
+  const handlePersonaPress = async (id: string) => {
+    await haptics.light();
+    router.push(`/persona/${id}`);
+  };
+
+  if (isLoading && !refreshing) {
     return <LoadingSpinner />;
   }
 
-  if (personasError || passesError) {
+  if (error) {
     return (
       <ErrorView
-        error={personasError || passesError}
-        onRetry={loadData}
+        error={error}
+        onRetry={fetchPersonas}
       />
     );
   }
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={personas}
-        renderItem={({ item: persona }) => (
-          <PersonaList
-            personas={[persona]}
-            onPersonaPress={handlePersonaPress}
-            onAddPress={handleAddPersonaPress}
-            showAddButton={personas.length === 0}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
           />
-        )}
-        keyExtractor={item => item.id}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={() => (
-          <PersonaList
-            personas={[]}
-            onPersonaPress={() => {}}
-            onAddPress={handleAddPersonaPress}
-            showAddButton={true}
-          />
-        )}
-      />
+        }
+      >
+        <PersonaList
+          personas={personas}
+          onPersonaPress={handlePersonaPress}
+          onAddPress={handleAddPersona}
+          showAddButton={personas.length === 0}
+        />
+      </ScrollView>
+
+      {personas.length > 0 && (
+        <FAB
+          icon="add"
+          onPress={handleAddPersona}
+          color="#007AFF"
+        />
+      )}
     </View>
   );
 };
@@ -102,7 +86,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  list: {
+  content: {
+    flexGrow: 1,
     padding: 16,
   },
 }); 

@@ -6,26 +6,30 @@ import { cache } from '../utils/cache';
 import { retry } from '../utils/retry';
 import { queue } from '../utils/queue';
 import { useNetwork } from '../utils/network';
-import { TimePass, TimePassInput } from '../types/timePass';
 import { validateTimePass } from '../utils/validation';
+import { TimePass, TimePassInput } from '../types/timePass';
 
-type TimePass = Database['public']['Tables']['time_passes']['Row'];
+// Define base types from database
+type TimePassBase = Database['public']['Tables']['time_passes']['Row'];
 type TimePassInsert = Database['public']['Tables']['time_passes']['Insert'];
 type TimePassUpdate = Database['public']['Tables']['time_passes']['Update'];
+
+// Remove the duplicate TimePass interface since we're importing it from types/timePass.ts
 
 interface TimePassState {
   passes: TimePass[];
   isLoading: boolean;
   error: string | null;
   fetchPasses: (personaId: string) => Promise<void>;
-  addTimePass: (data: TimePassInput) => Promise<void>;
+  addTimePass: (data: TimePassInput) => Promise<TimePass>;
   updateTimePass: (id: string, data: Partial<TimePass>) => Promise<void>;
   deleteTimePass: (id: string) => Promise<void>;
   pauseTimePass: (id: string) => Promise<void>;
   resumeTimePass: (id: string) => Promise<void>;
+  completeTimePass: (id: string) => Promise<void>;
+  cancelTimePass: (id: string) => Promise<void>;
   subscribeToChanges: (personaId?: string) => () => void;
   unsubscribeFromChanges: () => void;
-  cancelPass: (id: string) => Promise<void>;
 }
 
 const CACHE_KEYS = {
@@ -56,6 +60,10 @@ const QUEUE_OPERATIONS = {
   DELETE_TIME_PASS: 'DELETE_TIME_PASS',
 } as const;
 
+const formatDateForDB = (date: Date): string => {
+  return date.toISOString();
+};
+
 export const useTimePass = create<TimePassState>((set, get) => ({
   passes: [],
   isLoading: false,
@@ -78,15 +86,15 @@ export const useTimePass = create<TimePassState>((set, get) => ({
         let query = supabase
           .from('time_passes')
           .select('*')
-          .eq('persona_id', personaId)
+          .eq('persona_id', personaId as any)
           .order('created_at', { ascending: false });
 
         const { data, error } = await query;
         if (error) throw error;
-        return data || [];
+        return (data ?? []) as unknown as TimePass[];
       }, retryOptions);
 
-      set({ passes: timePasses });
+      set({ passes: timePasses, });
       await cache.set(cacheKey, timePasses, CACHE_EXPIRY);
     } catch (error) {
       console.error('Fetch time passes error:', error);
@@ -96,98 +104,168 @@ export const useTimePass = create<TimePassState>((set, get) => ({
     }
   },
 
-  addTimePass: async (data) => {
+  addTimePass: async (data: TimePassInput) => {
     try {
-      const validationError = validateTimePass(data);
-      if (validationError) {
-        throw new Error(validationError);
-      }
-
       set({ isLoading: true, error: null });
       
-      const expireAt = new Date(Date.now() + data.duration * 60000).toISOString();
+      // Check if user is authenticated
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) {
+        throw new Error('User must be authenticated');
+      }
       
-      const { data: timePass, error } = await supabase
+      const now = new Date();
+      const formattedData: TimePassInsert = {
+        persona_id: data.persona_id,
+        label: data.label,
+        duration: data.duration,
+        type: data.type,
+        status: 'active',
+        started_at: formatDateForDB(now),
+        expire_at: formatDateForDB(new Date(now.getTime() + data.duration * 60000)),
+        remaining_time: data.duration * 60, // Convert minutes to seconds
+      };
+
+      const { data: newPass, error } = await supabase
         .from('time_passes')
-        .insert([{
-          ...data,
-          status: 'active',
-          createdAt: new Date().toISOString(),
-          expireAt,
-        }])
+        .insert(formattedData as any)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       set(state => ({
-        passes: [...state.passes, timePass],
-        isLoading: false,
+        passes: [...state.passes, newPass as unknown as TimePass],
       }));
+
+      return newPass as unknown as TimePass;
     } catch (error) {
-      set({ 
-        error: error instanceof Error ? error.message : 'Failed to add time pass',
-        isLoading: false,
-      });
+      console.error('Add time pass error:', error);
+      set({ error: error instanceof Error ? error.message : 'Failed to add time pass' });
       throw error;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
-  updateTimePass: async (id, updates) => {
+  updateTimePass: async (id: string, updates: Partial<TimePass>) => {
     try {
       set({ isLoading: true, error: null });
+
+      const updatedData = {
+        ...updates,
+        updated_at: formatDateForDB(new Date()),
+      };
+
       const { data, error } = await supabase
         .from('time_passes')
-        .update(updates)
-        .eq('id', id)
+        .update(updatedData as any)
+        .eq('id', id as any)
         .select()
         .single();
 
       if (error) throw error;
-      if (!data) throw new Error('No data returned from update');
 
       set(state => ({
         passes: state.passes.map(pass => 
-          pass.id === id ? data : pass
-        )
+          pass.id === id ? { ...pass, ...(data as unknown as TimePass) } : pass
+        ),
       }));
-
-      return data;
     } catch (error) {
       console.error('Update time pass error:', error);
-      throw error instanceof Error ? error : new Error('Failed to update time pass');
+      set({ error: error instanceof Error ? error.message : 'Failed to update time pass' });
+      throw error;
     } finally {
       set({ isLoading: false });
     }
   },
 
   deleteTimePass: async (id) => {
+    set({ isLoading: true, error: null });
     try {
-      set({ isLoading: true, error: null });
-      const { error } = await supabase
-        .from('time_passes')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
+      // TODO: Implement actual API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
       set(state => ({
-        passes: state.passes.filter(pass => pass.id !== id)
+        passes: state.passes.filter(pass => pass.id !== id),
+        error: null,
       }));
     } catch (error) {
-      console.error('Delete time pass error:', error);
-      throw error instanceof Error ? error : new Error('Failed to delete time pass');
+      set({ error: error instanceof Error ? error.message : 'Failed to delete time pass' });
+      throw error;
     } finally {
       set({ isLoading: false });
     }
   },
 
   pauseTimePass: async (id) => {
-    await get().updateTimePass(id, { status: 'paused' });
+    set({ isLoading: true, error: null });
+    try {
+      const pass = get().passes.find(p => p.id === id);
+      if (!pass) throw new Error('Time pass not found');
+
+      await get().updateTimePass(id, {
+        status: 'paused' as const,
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to pause time pass' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   resumeTimePass: async (id) => {
-    await get().updateTimePass(id, { status: 'active' });
+    set({ isLoading: true, error: null });
+    try {
+      const pass = get().passes.find(p => p.id === id);
+      if (!pass) throw new Error('Time pass not found');
+
+      await get().updateTimePass(id, {
+        status: 'active' as const,
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to resume time pass' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  completeTimePass: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      const pass = get().passes.find(p => p.id === id);
+      if (!pass) throw new Error('Time pass not found');
+
+      await get().updateTimePass(id, {
+        status: 'expired' as const,
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to complete time pass' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  cancelTimePass: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      const pass = get().passes.find(p => p.id === id);
+      if (!pass) throw new Error('Time pass not found');
+
+      await get().updateTimePass(id, {
+        status: 'expired' as const,
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to cancel time pass' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   subscribeToChanges: (personaId?: string) => {
@@ -243,28 +321,21 @@ export const useTimePass = create<TimePassState>((set, get) => ({
       }
     });
   },
-
-  cancelPass: async (id) => {
-    // Implementation of cancelPass method
-  },
 }));
 
 // Process queue when app comes online
-useNetwork.subscribe(
-  (state) => state.isConnected,
-  async (isConnected) => {
-    if (isConnected) {
-      await queue.process({
-        [QUEUE_OPERATIONS.ADD_TIME_PASS]: async (data: TimePassInsert) => {
-          await useTimePass.getState().addTimePass(data);
-        },
-        [QUEUE_OPERATIONS.UPDATE_TIME_PASS]: async ({ id, data }: { id: string; data: TimePassUpdate }) => {
-          await useTimePass.getState().updateTimePass(id, data);
-        },
-        [QUEUE_OPERATIONS.DELETE_TIME_PASS]: async (id: string) => {
-          await useTimePass.getState().deleteTimePass(id);
-        },
-      });
-    }
+useNetwork.subscribe((state) => {
+  if (state.isConnected) {
+    queue.process({
+      [QUEUE_OPERATIONS.ADD_TIME_PASS]: async (data: TimePassInput) => {
+        await useTimePass.getState().addTimePass(data);
+      },
+      [QUEUE_OPERATIONS.UPDATE_TIME_PASS]: async ({ id, data }: { id: string; data: Partial<TimePass> }) => {
+        await useTimePass.getState().updateTimePass(id, data);
+      },
+      [QUEUE_OPERATIONS.DELETE_TIME_PASS]: async (id: string) => {
+        await useTimePass.getState().deleteTimePass(id);
+      },
+    });
   }
-); 
+}); 

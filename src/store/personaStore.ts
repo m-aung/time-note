@@ -4,7 +4,7 @@ import { supabase } from '../services/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { scheduleTimePassNotification, cancelTimePassNotifications } from '../utils/notifications';
 import { deleteImage, updateImage } from '../utils/storage';
-import { validateTimePass, validatePersonaId } from '../utils/validation';
+import { validateTimePass, validatePersonaId, validateImage } from '../utils/validation';
 
 interface PersonaState {
   personas: Persona[];
@@ -16,7 +16,7 @@ interface PersonaState {
   updatePersona: (id: string, updates: Partial<Persona>) => Promise<void>;
   deletePersona: (id: string) => Promise<void>;
   selectPersona: (persona: Persona | null) => void;
-  addTimePass: (personaId: string, label: string, expireAt: string) => Promise<void>;
+  addTimePass: (personaId: string, label: string, expireAt: string, type: string) => Promise<void>;
   updateTimePass: (passId: string, updates: Partial<TimePass>) => Promise<void>;
   deleteTimePass: (passId: string) => Promise<void>;
   subscribeToUpdates: () => void;
@@ -25,6 +25,77 @@ interface PersonaState {
 
 export const usePersona = create<PersonaState>((set, get) => {
   let realtimeChannel: RealtimeChannel | null = null;
+
+  const updatePersonaImage = async (personaId: string, imageFile: File): Promise<string> => {
+    try {
+      // Validate image before upload
+      validateImage(imageFile);
+
+      // 1. Check if bucket exists
+      const { data: buckets, error: bucketError } = await supabase
+        .storage
+        .listBuckets();
+
+      if (bucketError) {
+        console.error('Error checking buckets:', bucketError);
+        throw new Error('Storage system unavailable');
+      }
+
+      const avatarsBucketExists = buckets?.some(b => b.name === 'avatars');
+      if (!avatarsBucketExists) {
+        console.error('Avatars bucket not found');
+        throw new Error('Storage configuration error');
+      }
+
+      // 2. Upload image to Supabase Storage
+      const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${personaId}_${Date.now()}.${fileExt}`; 
+      const filePath = `${personaId}/${fileName}`; // Organize by persona ID
+
+      // Convert File to Blob if needed
+      const blob = new Blob([imageFile], { type: imageFile.type });
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, blob, {
+          upsert: true,
+          contentType: imageFile.type,
+          cacheControl: '3600'
+        });
+
+      if (uploadError) {
+        console.error('Upload error details:', uploadError);
+        if (uploadError.message.includes('storage/bucket-not-found')) {
+          throw new Error('Storage not properly configured');
+        }
+        if (uploadError.message.includes('storage/unauthorized')) {
+          throw new Error('Not authorized to upload files');
+        }
+        throw uploadError;
+      }
+
+      // 3. Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      if (!publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('storage/')) {
+          throw new Error('Storage system error: Please try again later');
+        }
+        throw error;
+      }
+      throw new Error('Failed to upload image');
+    }
+  };
 
   return {
     personas: [],
@@ -149,18 +220,37 @@ export const usePersona = create<PersonaState>((set, get) => {
         set({ isLoading: true, error: null });
 
         const persona = get().personas.find(p => p.id === id);
+        if (!persona) throw new Error('Persona not found');
+
         let imageUrl = updates.image_url;
 
-        // Handle image update if needed
-        if (updates.image_url && updates.image_url !== persona?.image_url) {
-          imageUrl = await updateImage(persona?.image_url || null, updates.image_url);
+        // Handle image update if it's a File object
+        if (updates.image_url !== undefined) {
+          try {
+            // Delete old image if it exists
+            if (persona.image_url) {
+              const oldImagePath = persona.image_url.split('/').pop();
+              if (oldImagePath) {
+                await supabase.storage
+                  .from('avatars')
+                  .remove([`avatars/${oldImagePath}`]);
+              }
+            }
+            
+            // Upload new image
+            imageUrl = await updatePersonaImage(id, updates.image_url as unknown as File);
+          } catch (imageError) {
+            console.error('Image update error:', imageError);
+            throw new Error(imageError instanceof Error ? imageError.message : 'Failed to update image');
+          }
         }
 
+        // Update persona record
         const { data, error } = await supabase
           .from('personas')
           .update({
-            name: updates.name,
-            image_url: imageUrl,
+            ...(updates.name && { name: updates.name }),
+            ...(imageUrl && { image_url: imageUrl }),
           })
           .eq('id', id)
           .select()
@@ -178,6 +268,7 @@ export const usePersona = create<PersonaState>((set, get) => {
       } catch (error) {
         console.error('Update persona error:', error);
         set({ error: error instanceof Error ? error.message : 'Failed to update persona' });
+        throw error;
       } finally {
         set({ isLoading: false });
       }
@@ -212,7 +303,7 @@ export const usePersona = create<PersonaState>((set, get) => {
       }
     },
 
-    addTimePass: async (personaId: string, label: string, expireAt: string) => {
+    addTimePass: async (personaId: string, label: string, expireAt: string, type: string) => {
       try {
         set({ isLoading: true, error: null });
 
@@ -222,7 +313,7 @@ export const usePersona = create<PersonaState>((set, get) => {
           throw new Error(personaIdError);
         }
 
-        const timePassError = validateTimePass(label, expireAt);
+        const timePassError = validateTimePass({label, duration:parseFloat(expireAt), type});
         if (timePassError) {
           throw new Error(timePassError);
         }

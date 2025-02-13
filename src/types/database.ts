@@ -6,7 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       personas: {
@@ -38,28 +38,46 @@ export interface Database {
       time_passes: {
         Row: {
           id: string;
-          label: string;
-          expire_at: string;
           persona_id: string;
-          status: 'active' | 'expired' | 'paused';
+          label: string;
+          duration: number;
+          type: 'entertainment' | 'education' | 'exercise' | 'other';
+          status: 'active' | 'paused' | 'expired' | 'completed' | 'cancelled';
+          started_at: string;
+          completed_at: string | null;
+          paused_at: string | null;
+          expire_at: string;
+          remaining_time: number | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          label: string;
-          expire_at: string;
           persona_id: string;
-          status?: 'active' | 'expired' | 'paused';
+          label: string;
+          duration: number;
+          type?: 'entertainment' | 'education' | 'exercise' | 'other';
+          status?: 'active' | 'paused' | 'expired' | 'completed' | 'cancelled';
+          started_at?: string;
+          completed_at?: string | null;
+          paused_at?: string | null;
+          expire_at: string;
+          remaining_time?: number | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          label?: string;
-          expire_at?: string;
           persona_id?: string;
-          status?: 'active' | 'expired' | 'paused';
+          label?: string;
+          duration?: number;
+          type?: 'entertainment' | 'education' | 'exercise' | 'other';
+          status?: 'active' | 'paused' | 'expired' | 'completed' | 'cancelled';
+          started_at?: string;
+          completed_at?: string | null;
+          paused_at?: string | null;
+          expire_at?: string;
+          remaining_time?: number | null;
           created_at?: string;
           updated_at?: string;
         };

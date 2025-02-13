@@ -17,7 +17,7 @@ export const TimePassDetailsScreen = () => {
     error,
     pauseTimePass,
     resumeTimePass,
-    cancelPass,
+    cancelTimePass
   } = useTimePass();
 
   const timePass = passes.find(p => p.id === id);
@@ -80,7 +80,7 @@ export const TimePassDetailsScreen = () => {
           onPress: async () => {
             try {
               await haptics.light();
-              await cancelPass(id);
+              await cancelTimePass(id);
               await haptics.success();
               router.back();
             } catch (error) {
@@ -98,13 +98,13 @@ export const TimePassDetailsScreen = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.categoryIcon}>
-          {getCategoryIcon(timePass.category)}
+          {getCategoryIcon(timePass.type)}
         </Text>
         <Text style={styles.label}>{timePass.label}</Text>
       </View>
 
       <View style={styles.timerContainer}>
-        <CountdownTimer expireAt={timePass.expireAt} />
+        <CountdownTimer expireAt={timePass.expire_at} />
       </View>
 
       <View style={styles.details}>
@@ -112,28 +112,33 @@ export const TimePassDetailsScreen = () => {
           Duration: {timePass.duration} minutes
         </Text>
         <Text style={styles.detailText}>
-          Category: {timePass.category}
+          Category: {timePass.type}
         </Text>
       </View>
 
       <View style={styles.actions}>
         {timePass.status === 'active' ? (
+          <View>
           <TouchableOpacity 
             style={[styles.button, styles.pauseButton]} 
             onPress={handlePause}
           >
             <Text style={styles.buttonText}>Pause</Text>
           </TouchableOpacity>
+          </View>
         ) : timePass.status === 'paused' ? (
+          <View>
           <TouchableOpacity 
             style={[styles.button, styles.resumeButton]} 
             onPress={handleResume}
           >
             <Text style={styles.buttonText}>Resume</Text>
           </TouchableOpacity>
+          </View>
         ) : null}
 
         {(timePass.status === 'active' || timePass.status === 'paused') && (
+          <View>
           <TouchableOpacity 
             style={[styles.button, styles.cancelButton]} 
             onPress={handleCancel}
@@ -142,6 +147,7 @@ export const TimePassDetailsScreen = () => {
               Cancel
             </Text>
           </TouchableOpacity>
+          </View>
         )}
       </View>
     </View>

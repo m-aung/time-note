@@ -19,14 +19,16 @@ export const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.subtitle}>Email: {user?.email}</Text>
-      
-      <TouchableOpacity 
-        style={styles.profileButton}
-        onPress={() => router.push('/(app)/profile')}
-      >
-        <Text style={styles.buttonText}>View Profile</Text>
-      </TouchableOpacity>
+      <View style={styles.content}>
+        <Text style={styles.subtitle}>Email: {user?.email}</Text>
+        
+        <TouchableOpacity 
+          style={styles.profileButton}
+          onPress={() => router.push('/(app)/profile')}
+        >
+          <Text style={styles.buttonText}>View Profile</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -34,14 +36,17 @@ export const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
     backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    padding: 16,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
   },
   title: {
     fontSize: 24,

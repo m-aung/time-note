@@ -1,5 +1,5 @@
 export const getCategoryIcon = (category: string): string => {
-  switch (category.toLowerCase()) {
+  switch (category?.toLowerCase()) {
     case 'entertainment':
       return '🎮';
     case 'education':
@@ -20,18 +20,16 @@ export const getCategoryIcon = (category: string): string => {
 };
 
 export const getStatusIcon = (status: string): string => {
-  switch (status.toLowerCase()) {
+  switch (status) {
     case 'active':
-      return '⏳';
-    case 'expired':
-      return '⌛';
-    case 'cancelled':
-      return '❌';
+      return '▶️';
     case 'paused':
       return '⏸️';
     case 'completed':
       return '✅';
+    case 'cancelled':
+      return '❌';
     default:
-      return '❓';
+      return '⚪️';
   }
 }; 
